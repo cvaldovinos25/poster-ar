@@ -10,7 +10,9 @@
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
-    html, body { margin: 0; height: 100%; background: #000; }
+    /* Importante: NO poner color de fondo en html/body. El video de la cámara va detrás
+       del contenido y un fondo lo taparía (pantalla negra con la cámara encendida). */
+    html, body { margin: 0; height: 100%; }
 
     /* Mensaje de error: solo aparece si algo falla */
     #aviso {
