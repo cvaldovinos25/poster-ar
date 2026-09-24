@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Póster AR</title>
+
+  <!-- Versiones fijas para que el proyecto no se rompa si salen actualizaciones -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; }
+
+    #inicio {
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 14px; padding: 24px; box-sizing: border-box; text-align: center;
+      background: #14161a; color: #f2f2f2;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    #inicio h1 { margin: 0; font-size: 1.6rem; font-weight: 650; }
+    #inicio p  { margin: 0; max-width: 32ch; line-height: 1.5; color: #b9bec7; }
+    #inicio button {
+      margin-top: 10px; padding: 14px 30px; border: 0; border-radius: 999px;
+      font: inherit; font-weight: 600; color: #14161a; background: #f2f2f2;
+    }
+    #inicio button:focus-visible { outline: 3px solid #7fb4ff; outline-offset: 3px; }
+    #inicio button[disabled] { opacity: .6; }
+  </style>
+</head>
+<body>
+
+  <!-- Pantalla inicial: el toque del usuario es necesario para activar cámara y sonido en iPhone -->
+  <div id="inicio">
+    <h1>Póster interactivo</h1>
+    <p>Apunta la cámara al póster impreso y la animación aparecerá sobre la imagen.</p>
+    <button id="btn-iniciar">Activar cámara</button>
+  </div>
+
+  <a-scene
+    mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: false; maxTrack: 1; uiLoading: yes; uiScanning: yes; uiError: yes;"
+    color-space="sRGB"
+    renderer="colorManagement: true, physicallyCorrectLights"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: false">
+
+    <a-assets>
+      <!-- Cambia el nombre si tu video se llama distinto -->
+      <video id="video-poster"
+             src="./assets/animacion.mp4"
+             preload="auto"
+             loop
+             playsinline
+             webkit-playsinline
+             crossorigin="anonymous"></video>
+    </a-assets>
+
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+    <!-- targetIndex 0 = primera (y única) imagen dentro de targets.mind -->
+    <a-entity id="objetivo" mindar-image-target="targetIndex: 0">
+      <!--
+        width = 1 equivale al ancho completo del póster.
+        height = alto ÷ ancho de TU imagen. Ejemplos:
+          Póster vertical A3/A4 (proporción 1:1.414) -> 1.414
+          Póster vertical 2:3                         -> 1.5
+          Póster cuadrado                             -> 1
+          Póster horizontal 16:9                      -> 0.5625
+      -->
+      <a-video src="#video-poster" width="1" height="1.414" position="0 0 0.01"></a-video>
+    </a-entity>
+  </a-scene>
+
+  <script>
+    const escena  = document.querySelector('a-scene');
+    const video   = document.querySelector('#video-poster');
+    const objetivo = document.querySelector('#objetivo');
+    const boton   = document.querySelector('#btn-iniciar');
+    const inicio  = document.querySelector('#inicio');
+
+    boton.addEventListener('click', async () => {
+      boton.disabled = true;
+      boton.textContent = 'Cargando…';
+
+      // "Desbloquea" el video con este toque del usuario (necesario en iOS para que luego suene)
+      try {
+        await video.play();
+        video.pause();
+        video.currentTime = 0;
+      } catch (e) { /* si falla, seguirá funcionando sin sonido */ }
+
+      try {
+        const sistemaAR = escena.systems['mindar-image-system'];
+        await sistemaAR.start();
+        inicio.style.display = 'none';
+      } catch (e) {
+        console.error(e);
+        boton.disabled = false;
+        boton.textContent = 'Reintentar';
+      }
+    });
+
+    objetivo.addEventListener('targetFound', () => { video.play(); });
+    objetivo.addEventListener('targetLost',  () => { video.pause(); });
+  </script>
+</body>
+</html>
