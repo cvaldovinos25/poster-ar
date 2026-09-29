@@ -2,8 +2,6 @@
 
 Experiencia de realidad aumentada con reconocimiento de imagen: al apuntar la cámara del celular a un póster impreso, se reproduce un video superpuesto exactamente sobre él.
 
-🔗 **Demo:** https://cvaldovinos25.github.io/poster-ar/
-
 ## Cómo funciona
 
 1. La persona escanea un QR (o abre el link) que carga la página.
