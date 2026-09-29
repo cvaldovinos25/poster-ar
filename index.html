@@ -162,8 +162,21 @@
   <div id="aviso" role="alert"></div>
   <div id="instruccion" aria-hidden="true"><span id="instruccion-texto"></span></div>
 
+  <!--
+    filterMinCF / filterBeta: suavizado del tracking (filtro One Euro que trae MindAR).
+    Por defecto son muy conservadores (0.001 / 1) y eso es lo que hace que el video se
+    sienta "flotando" detrás del movimiento real de la mano. Subirlos hace que el video
+    persiga el póster más de cerca:
+      - filterMinCF: suavizado base (con la mano quieta). Más alto = menos lag en reposo,
+        pero más tembloroso.
+      - filterBeta: qué tanto reacciona a la VELOCIDAD del movimiento. Es el que más importa
+        acá: más alto = sigue mucho mejor los movimientos rápidos de la mano, a costa de un
+        poco más de temblor durante el movimiento.
+    Si se siente demasiado tembloroso, bajar filterBeta (ej. 300); si todavía se nota lag,
+    subirlo más (ej. 2000).
+  -->
   <a-scene
-    mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: true; maxTrack: 1; uiLoading: yes; uiScanning: yes; uiError: no;"
+    mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: true; maxTrack: 1; uiLoading: yes; uiScanning: yes; uiError: no; filterMinCF: 0.01; filterBeta: 1000;"
     color-space="sRGB"
     renderer="colorManagement: true, physicallyCorrectLights"
     vr-mode-ui="enabled: false"
