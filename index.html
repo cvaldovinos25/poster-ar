@@ -108,7 +108,7 @@
     });
     escena.addEventListener('arReady', () => {
       aviso.style.display = 'none';
-      mostrarInstruccion('Apunta de nuevo al póster para darle vida a la experiencia');
+      mostrarInstruccion('Vuelve a apuntar la cámara hacia el póster para comenzar');
     });
 
     ['./assets/targets.mind', './assets/animacion.mp4'].forEach(async (ruta) => {
@@ -137,7 +137,7 @@
     objetivo.addEventListener('targetLost', () => {
       visible = false;
       video.pause();
-      mostrarInstruccion('Vuelve a apuntar la cámara hacia el póster');
+      mostrarInstruccion('Vuelve a apuntar la cámara hacia el póster para comenzar');
     });
 
     // la instrucción solo se oculta cuando el video realmente está reproduciéndose
