@@ -9,6 +9,126 @@
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
+  <!--
+    Componente "video-blend": en vez de pintar el video plano y opaco (como hace <a-video>),
+    lo dibuja con un shader propio que:
+      1) difumina los bordes (feather) para que no se vea como un rectángulo pegado encima,
+      2) le agrega un grano sutil, como si fuera parte de la imagen de la cámara,
+      3) ajusta el brillo del video según la luz real del entorno (mide el brillo promedio
+         del video de la cámara que usa MindAR y lo va siguiendo suavemente).
+    Se registra ACÁ, antes de <a-scene>, para que exista antes de que la escena lo use.
+  -->
+  <script>
+    AFRAME.registerComponent('video-blend', {
+      schema: {
+        width:    { type: 'number', default: 1 },
+        height:   { type: 'number', default: 1 },
+        // feather: qué tan ancho es el difuminado del borde (0 = sin difuminar, en UV 0..1)
+        // bien chico a propósito: apenas suaviza el borde duro, sin comerse detalle de la gráfica
+        feather:  { type: 'number', default: 0.012 },
+        // grain: intensidad del grano/textura (0 = sin grano)
+        grain:    { type: 'number', default: 0.035 },
+      },
+
+      init: function () {
+        const videoEl = document.querySelector('#video-poster');
+        const texture = new THREE.VideoTexture(videoEl);
+
+        this.uniforms = {
+          map:        { value: texture },
+          uBrightness:{ value: 1.0 },
+          uTime:      { value: 0 },
+          uFeather:   { value: this.data.feather },
+          uGrain:     { value: this.data.grain },
+        };
+
+        const material = new THREE.ShaderMaterial({
+          uniforms: this.uniforms,
+          transparent: true,
+          vertexShader: `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            varying vec2 vUv;
+            uniform sampler2D map;
+            uniform float uBrightness;
+            uniform float uTime;
+            uniform float uFeather;
+            uniform float uGrain;
+
+            float ruido(vec2 co) {
+              return fract(sin(dot(co, vec2(12.9898, 78.233)) + uTime) * 43758.5453);
+            }
+
+            void main() {
+              vec4 tex = texture2D(map, vUv);
+
+              // difuminado del borde: se desvanece hacia los 4 bordes del video
+              vec2 d = min(vUv, 1.0 - vUv);
+              float borde = min(d.x, d.y);
+              float alpha = smoothstep(0.0, uFeather, borde);
+
+              // grano sutil, como ruido de sensor de cámara
+              float g = (ruido(vUv * 600.0) - 0.5) * uGrain;
+
+              vec3 color = tex.rgb * uBrightness + g;
+              gl_FragColor = vec4(color, tex.a * alpha);
+            }
+          `,
+        });
+
+        const geometry = new THREE.PlaneGeometry(this.data.width, this.data.height);
+        this.mesh = new THREE.Mesh(geometry, material);
+        this.el.setObject3D('mesh', this.mesh);
+
+        // --- Medición de luz ambiente a partir del video real de la cámara ---
+        this._sampleCanvas = document.createElement('canvas');
+        this._sampleCanvas.width = 8;
+        this._sampleCanvas.height = 8;
+        this._sampleCtx = this._sampleCanvas.getContext('2d', { willReadFrequently: true });
+        this._lastSample = 0;
+        this._brillo = 1.0;
+      },
+
+      tick: function (time) {
+        this.uniforms.uTime.value = time * 0.001;
+
+        // no hace falta medir la luz en cada frame: alcanza con ~6 veces por segundo
+        if (time - this._lastSample > 160) {
+          this._lastSample = time;
+          this._medirLuzAmbiente();
+        }
+      },
+
+      _medirLuzAmbiente: function () {
+        const sistema = this.el.sceneEl.systems['mindar-image-system'];
+        const camVideo = sistema && sistema.video;
+        if (!camVideo || camVideo.readyState < 2) return;
+
+        try {
+          this._sampleCtx.drawImage(camVideo, 0, 0, 8, 8);
+          const datos = this._sampleCtx.getImageData(0, 0, 8, 8).data;
+          let suma = 0;
+          for (let i = 0; i < datos.length; i += 4) {
+            suma += 0.2126 * datos[i] + 0.7152 * datos[i + 1] + 0.0722 * datos[i + 2];
+          }
+          const promedio = suma / (datos.length / 4) / 255; // 0 (oscuro) a 1 (muy iluminado)
+
+          // se mapea a un rango que no apague ni queme el video del todo
+          const objetivo = 0.65 + promedio * 0.7; // ~0.65 a ~1.35
+          this._brillo += (objetivo - this._brillo) * 0.08; // suavizado, para que no titile
+          this.uniforms.uBrightness.value = this._brillo;
+        } catch (e) {
+          // si algún navegador no deja leer el canvas, seguimos con el último brillo conocido
+        }
+      },
+    });
+  </script>
+
   <style>
     /* Importante: NO poner color de fondo en html/body. El video de la cámara va detrás
        del contenido y un fondo lo taparía (pantalla negra con la cámara encendida). */
@@ -73,7 +193,7 @@
           Póster cuadrado                             -> 1
           Póster horizontal 16:9                      -> 0.5625
       -->
-      <a-video src="#video-poster" width="1" height="1.414" position="0 0 0.01"></a-video>
+      <a-entity video-blend="width: 1; height: 1.414; feather: 0.012; grain: 0.035" position="0 0 0.01"></a-entity>
     </a-entity>
   </a-scene>
 
@@ -108,7 +228,7 @@
     });
     escena.addEventListener('arReady', () => {
       aviso.style.display = 'none';
-      mostrarInstruccion('Vuelve a apuntar la cámara hacia el póster para comenzar');
+      mostrarInstruccion('Apunta de nuevo al póster para darle vida a la experiencia');
     });
 
     ['./assets/targets.mind', './assets/animacion.mp4'].forEach(async (ruta) => {
@@ -137,7 +257,7 @@
     objetivo.addEventListener('targetLost', () => {
       visible = false;
       video.pause();
-      mostrarInstruccion('Vuelve a apuntar la cámara hacia el póster para comenzar');
+      mostrarInstruccion('Vuelve a apuntar la cámara hacia el póster');
     });
 
     // la instrucción solo se oculta cuando el video realmente está reproduciéndose
